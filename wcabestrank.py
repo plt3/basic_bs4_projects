@@ -4,7 +4,7 @@ import bs4
 
 class Competitor:
 
-    aobjlist = []  # not sure objlists are necessary, but could be useful later
+    aobjlist = []
     anameslist = []
     bobjlist = []
     bnameslist = []
@@ -38,10 +38,109 @@ def createobjs(url, event):
         Competitor(elem, event)
 
 
-createobjs('https://www.worldcubeassociation.org/results/rankings/555/average', 'a')
-createobjs('https://www.worldcubeassociation.org/results/rankings/sq1/single', 'b')
+def findbest():
+    overlaplist = []
 
-for name in Competitor.anameslist:
-    if name in Competitor.bnameslist:
-        print(name, end=': ')  # gives names that are in both, but might want to do it with objlists
-        print(Competitor.bobjlist[Competitor.bnameslist.index(name)].rank)
+    for cuber in Competitor.aobjlist:
+        if cuber.name in Competitor.bnameslist:
+            arank = int(cuber.rank)
+            brank = int(Competitor.bobjlist[Competitor.bnameslist.index(
+                cuber.name)].rank)
+            overlaplist.append(((cuber.name, arank + brank)))
+
+    overlaplist.sort(key=lambda tup: tup[1])
+
+    return overlaplist[0]
+
+
+def getuserevents():
+    eventlist = ['333', '222', '444', '555', '666', '777', '333bf', '333fm',
+                 '333oh', 'clock', 'minx', 'pyram', 'skewb', 'sq1', '444bf',
+                 '555bf', '333mbf']
+
+    typelist = ['single', 'average']
+
+    inputlist = []
+
+    firstcounter = 0
+    secondcounter = 0
+    thirdcounter = 0
+
+    while True:
+        try:
+            if firstcounter == 0:
+                eventa = input('Enter first event (or enter "events" to see options): ')
+
+                if eventa == 'events':
+                    print('Events: ' + ', '.join(eventlist))
+                    continue
+                elif eventa not in eventlist:
+                    raise ValueError
+
+                inputlist.append(eventa)
+                eventlist.remove(eventa)
+                firstcounter = 1
+
+            if secondcounter == 0:
+                typea = input('Enter "single" or "average": ')
+
+                if typea not in typelist:
+                    raise Exception
+
+                inputlist.append(typea)
+                secondcounter = 1
+
+            if thirdcounter == 0:
+                eventb = input('Enter second event (or enter "events" to see options): ')
+
+                if eventb == 'events':
+                    print('Events: ' + ', '.join(eventlist))
+                    continue
+                elif eventb not in eventlist:
+                    raise ValueError
+
+                inputlist.append(eventb)
+                thirdcounter = 1
+
+            typeb = input('Enter "single" or "average": ')
+
+            if typeb not in typelist:
+                raise Exception
+
+            inputlist.append(typeb)
+            break
+
+        except ValueError:
+            if firstcounter == 0:
+                print(f'"{eventa}" not an available event. Please try again.')
+            else:
+                print(f'"{eventb}" not an available event. Please try again.')
+        except Exception:
+            print('Enter "single" or "average". Please try again.')
+
+    return inputlist
+
+
+def main():
+    print()
+
+    userchoices = getuserevents()
+
+    urla = 'https://www.worldcubeassociation.org/results/rankings/' + '/'.join(
+        userchoices[:2])
+
+    urlb = 'https://www.worldcubeassociation.org/results/rankings/' + '/'.join(
+        userchoices[2:])
+
+    createobjs(urla, 'a')
+    createobjs(urlb, 'b')
+
+    name, rank = findbest()
+    placea = ' '.join(userchoices[:2])
+    placeb = ' '.join(userchoices[2:])
+
+    print(f'\n{name} is the cuber with the best sum of {placea} and {placeb}'
+          f' ranks, with a sum of {rank}.')
+
+
+main()
