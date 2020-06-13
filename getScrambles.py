@@ -1,6 +1,7 @@
 import bs4
 import requests
 import pyinputplus as pyip
+from pprint import pprint  # delete later
 
 
 def prepareSoup(site):
@@ -40,14 +41,18 @@ def getCompEvents(wcaId, fullSoup):
         data = row.find_all('td')
         eventName = data[0].text
         round = data[1].text
+        times = [data[i].text for i in range(5, 10) if len(data[i].text) > 0]
 
         if len(eventName) > 0:
             lastEvent = eventName
-            eventsAndRounds[eventName] = [round]
+            eventsAndRounds[eventName] = {round: times}
         else:
-            eventsAndRounds[lastEvent].append(round)
+            eventsAndRounds[lastEvent][round] = times
 
-    return eventsAndRounds
+    pprint(eventsAndRounds)
+    exit()
+
+    return eventsAndRounds  # different format now so fix interpretation down the line
 
 
 def findScrambles(event, round, fullSoup):
