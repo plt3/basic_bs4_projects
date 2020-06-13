@@ -32,7 +32,10 @@ def compsAndResults():
 
     compDict = {c.find('strong').text: i for i, c in enumerate(compsTags)}
 
-    compChoice = pyip.inputMenu(list(compDict.keys()), numbered=True)
+    if len(list(compDict.keys())) == 1:
+        compChoice = list(compDict.keys())[0]
+    else:
+        compChoice = pyip.inputMenu(list(compDict.keys()), numbered=True)
 
     compTag = compsTags[compDict[compChoice]]
 
@@ -61,7 +64,11 @@ def compsAndResults():
 def chooseRound(infoDict):
     events = list(list(infoDict.values())[0].values())[0]
     print()
-    eventChoice = pyip.inputMenu(list(events.keys()), numbered=True)
+
+    if len(list(events.keys())) == 1:
+        eventChoice = list(events.keys())[0]
+    else:
+        eventChoice = pyip.inputMenu(list(events.keys()), numbered=True)
 
     rounds = events[eventChoice]
     roundsList = list(rounds.keys())
@@ -132,7 +139,6 @@ def main():
     scrams = findScrambles(eventTup)
     writeToFile(eventTup, scrams)
 
-    # print times competitor got after each scramble (and competitor name too at top)
     # give possibility to export to a csv/xlsx file
     # give option to get all scrambles for all rounds of an event
 
