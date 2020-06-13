@@ -1,7 +1,6 @@
 import bs4
 import requests
 import pyinputplus as pyip
-from pprint import pprint  # delete later
 
 
 def prepareSoup(site):
@@ -13,33 +12,40 @@ def prepareSoup(site):
     return soup
 
 
-def allComps(wcaId):
-    cuberPage = prepareSoup(f'https://wcadb.net/person.php?id={wcaId.upper()}')
+def compsAndResults():
+    print('Enter WCA ID:', end=' ')
 
-    compsTab = cuberPage.find('div', id='competitions_tab')
+    while True:
+        wca = input().upper()
+        print(f'Searching database for {wca}...\n')
 
-    compsTags = compsTab.select('div[class="panel panel-default"] span[class="pull-right"] a')
+        cuberPage = prepareSoup(f'https://wcadb.net/person.php?id={wca.upper()}')
+        cuberName = cuberPage.find('h1', class_='h3 text-center').text
 
-    return {comp.text.lower(): (comp.get('href'), comp.text) for comp in compsTags}
-
-
-def getCompEvents(wcaId, fullSoup):
-    personsTab = fullSoup.find('div', id='persons_tab')
-    cuberResults = personsTab.select('div[class="panel panel-default"]')
-
-    for index, cuber in enumerate(cuberResults):
-        wcaLink = cuber.select_one('span[class="pull-right"] a').get('href')
-        if wcaId in wcaLink.upper():
-            indivTag = cuberResults[index]
+        if cuberName != '':
             break
 
-    eventsRows = indivTag.select('tbody tr')
+        print(f'No competitor found for WCA ID {wca}. Try again:', end=' ')
+
+    compsTab = cuberPage.find('div', id='competitions_tab')
+    compsTags = compsTab.select('div[class="panel panel-default"]')
+
+    compDict = {c.find('strong').text: i for i, c in enumerate(compsTags)}
+
+    compChoice = pyip.inputMenu(list(compDict.keys()), numbered=True)
+
+    compTag = compsTags[compDict[compChoice]]
+
+    linkTag = compTag.select_one('span[class="pull-right"] a')
+    compInfo = (compChoice, 'https://wcadb.net' + linkTag.get('href'))
+
+    eventsRows = compTag.select('tbody tr')
 
     eventsAndRounds = {}
 
     for row in eventsRows:
         data = row.find_all('td')
-        eventName = data[0].text
+        eventName = data[0].find('a').text
         round = data[1].text
         times = [data[i].text for i in range(5, 10) if len(data[i].text) > 0]
 
@@ -49,13 +55,37 @@ def getCompEvents(wcaId, fullSoup):
         else:
             eventsAndRounds[lastEvent][round] = times
 
-    pprint(eventsAndRounds)
-    exit()
-
-    return eventsAndRounds  # different format now so fix interpretation down the line
+    return {(cuberName, wca): {compInfo: eventsAndRounds}}
 
 
-def findScrambles(event, round, fullSoup):
+def chooseRound(infoDict):
+    events = list(list(infoDict.values())[0].values())[0]
+    print()
+    eventChoice = pyip.inputMenu(list(events.keys()), numbered=True)
+
+    rounds = events[eventChoice]
+    roundsList = list(rounds.keys())
+
+    if len(roundsList) > 1:
+        print()
+        roundChoice = pyip.inputMenu(roundsList, numbered=True)
+    else:
+        roundChoice = roundsList[0]
+
+    times = rounds[roundChoice]
+    compTup = list(list(infoDict.values())[0].keys())[0]
+    comp = compTup[0]
+    compLink = compTup[1]
+    name = list(infoDict.keys())[0][0]
+
+    return (compLink, eventChoice, roundChoice, name, comp, times)
+
+
+def findScrambles(dataTuple):
+    link, event, round = dataTuple[:3]
+    print('\nLocating scrambles. This may take several seconds for larger competitions...')
+
+    fullSoup = prepareSoup(link)
     scramblesPage = fullSoup.select_one('div[id="scrambles_tab"]')
     eventRounds = scramblesPage.find_all('div', class_='panel panel-default')
 
@@ -78,71 +108,29 @@ def findScrambles(event, round, fullSoup):
     return scramblesDict
 
 
-def writeToFile(wca, infoTuple, scrambles):
-    comp, event, round = infoTuple
+def writeToFile(infoTuple, scrambles):
+    event, round, name, comp, times = infoTuple[1:]
+    filename = f'{event} {round}.txt'
 
-    with open(f'{event} {round}.txt', 'w') as f:
-        f.write(f'{comp} {event} {round} scrambles:\n\n\n')
+    with open(filename, 'w') as f:
+        f.write(f'{name} {comp} {event} {round} scrambles and times:\n\n\n')
 
         for group, scramsList in scrambles.items():
             f.write(f'Group {group}:\n\n')
 
             for index, scram in enumerate(scramsList):
-                f.write(f'{index + 1}: {scram}\n')
+                f.write(f'{index + 1} ({times[index]}): {scram}\n')
 
             f.write('\n')
 
+    print(f'\nScrambles retrieved. Look for "{filename}" in your current directory.')
+
 
 def main():
-    wca = input('Enter WCA ID: ').upper()
-
-    while True:
-        print(f'Searching database for {wca}...')
-        possDict = allComps(wca)
-
-        if len(possDict) != 0:
-            break
-
-        wca = input(f'No competitions found for WCA ID {wca}. Try again: ').upper()
-
-    print('Enter competition you\'d like to retrieve scrambles for (or enter "help" for all competitions):', end=' ')
-
-    while True:
-        comp = input()
-
-        if comp == 'help':
-            print()
-            for event in possDict.values():
-                print(event[1])
-
-            print('\nEnter competition:', end=' ')
-            continue
-
-        if comp.lower() not in possDict.keys():
-            print(f'Sorry, but no competition "{comp}" found for WCA ID "{wca}".')
-            print('Try again:', end=' ')
-            continue
-
-        break
-
-    print('Parsing competitors. This may take several seconds for large competitions...\n')
-    compSoup = prepareSoup('https://wcadb.net' + possDict[comp.lower()][0])
-    cuberEvents = getCompEvents(wca, compSoup)
-    eventChoice = pyip.inputMenu(list(cuberEvents.keys()), lettered=True)
-    print()
-
-    if len(cuberEvents[eventChoice]) > 1:
-        roundChoice = pyip.inputMenu(cuberEvents[eventChoice], lettered=True)
-    else:
-        roundChoice = cuberEvents[eventChoice][0]
-
-    roundScrambles = findScrambles(eventChoice, roundChoice, compSoup)
-
-    dataTuple = (possDict[comp.lower()][1], eventChoice, roundChoice)
-
-    writeToFile(wca, dataTuple, roundScrambles)
-
-    print(f'Scrambles retrieved. Look for "{eventChoice} {roundChoice}.txt" in your current directory.')
+    allDict = compsAndResults()
+    eventTup = chooseRound(allDict)
+    scrams = findScrambles(eventTup)
+    writeToFile(eventTup, scrams)
 
     # print times competitor got after each scramble (and competitor name too at top)
     # give possibility to export to a csv/xlsx file
