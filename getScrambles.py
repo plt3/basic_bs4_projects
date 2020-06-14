@@ -1,6 +1,8 @@
 import bs4
 import requests
+import csv
 import pyinputplus as pyip
+from pprint import pprint
 
 
 def prepareSoup(site):
@@ -131,10 +133,12 @@ def findScrambles(dataTuple):
 
         fullDict[ro] = scramblesDict
 
+    print('\nScrambles retrieved.')
+
     return fullDict
 
 
-def writeToFile(infoTuple, scrambles):
+def writeTxtFile(infoTuple, scrambles):
     event, round, name, comp, times = infoTuple[1:]
 
     if len(round) == 1:
@@ -154,16 +158,65 @@ def writeToFile(infoTuple, scrambles):
                 for index, scram in enumerate(scramsList):
                     f.write(f'{index + 1} ({times[bigInd][index]}): {scram}\n')
 
-    print(f'\nScrambles retrieved. Look for "{filename}" in your current directory.')
+    print(f'\nDone. Look for "{filename}" in your current directory.')
+
+
+def writeCsvFile(infoTuple, scrambles):
+    event, round, name, comp, times = infoTuple[1:]
+
+    if len(round) == 1:
+        filename = f'{event} {round[0]}.csv'
+    else:
+        filename = f'{event} all rounds.csv'
+
+    with open(filename, 'w') as f:
+        writer = csv.writer(f)
+        writer.writerow([f'{name} {comp} {event} scrambles and times:'])
+        writer.writerow([None])
+        writer.writerow(['Round:', 'Group:', 'Time:', 'Scramble:'])
+
+        prevRound = 'a'
+
+        for roInd, ro in enumerate(round):
+            writer.writerow([None])
+            groups = scrambles[ro].keys()
+            prevGroup = 'no'
+
+            for group in groups:
+
+                scrams = scrambles[ro][group]
+
+                for scramInd, scram in enumerate(scrams):
+                    valuesToWrite = [None, None, times[roInd][scramInd], scram]
+
+                    if ro != prevRound:
+                        valuesToWrite[0] = ro
+
+                    if group != prevGroup:
+                        valuesToWrite[1] = group
+
+                    writer.writerow(valuesToWrite)
+
+                    prevGroup = group
+
+                    prevRound = ro
+
+    print(f'\nDone. Look for "{filename}" in your current directory.')
 
 
 def main():
     allDict = compsAndResults()
     eventTup = chooseRound(allDict)
     scrams = findScrambles(eventTup)
-    writeToFile(eventTup, scrams)
 
-    # give possibility to export to a csv/xlsx file
+    print('\nHow would you like your scrambles to be saved?\n')
+    fileChoice = pyip.inputMenu(['plaintext file', 'CSV file'], numbered=True)
+
+    if fileChoice == 'plaintext file':
+        writeTxtFile(eventTup, scrams)
+    else:
+        writeCsvFile(eventTup, scrams)
+
     # try to find group with pypdf2
 
 
