@@ -72,14 +72,21 @@ def chooseRound(infoDict):
 
     rounds = events[eventChoice]
     roundsList = list(rounds.keys())
+    roundsList.reverse()
 
     if len(roundsList) > 1:
+        roundsList.append('Get scrambles for all rounds')
         print()
-        roundChoice = pyip.inputMenu(roundsList, numbered=True)
-    else:
-        roundChoice = roundsList[0]
+        rawInp = pyip.inputMenu(roundsList, numbered=True)
 
-    times = rounds[roundChoice]
+        if rawInp == 'Get scrambles for all rounds':
+            roundChoice = roundsList[:-1]
+        else:
+            roundChoice = [rawInp]
+    else:
+        roundChoice = [roundsList[0]]
+
+    times = [rounds[i] for i in roundChoice]
     compTup = list(list(infoDict.values())[0].keys())[0]
     comp = compTup[0]
     compLink = compTup[1]
@@ -94,41 +101,58 @@ def findScrambles(dataTuple):
 
     fullSoup = prepareSoup(link)
     scramblesPage = fullSoup.select_one('div[id="scrambles_tab"]')
-    eventRounds = scramblesPage.find_all('div', class_='panel panel-default')
 
-    for cube in eventRounds:
-        if event in cube.text and round in cube.text:
-            scrambleTable = cube.find('tbody')
-            break
+    try:
+        eventRounds = scramblesPage.find_all('div', class_='panel panel-default')
+    except AttributeError:
+        print('Sorry, but wcadb.net has no scrambles for this competition.')
+        exit()
 
-    scramblesDict = {}
+    fullDict = {}
 
-    for row in scrambleTable.find_all('tr'):
-        data = row.find_all('td')
+    for ro in round:
+        for cube in eventRounds:
+            title = cube.find('a', class_='list-group-item').text.split()
 
-        if 'Ex' not in data[1].text:
-            if data[0].text not in scramblesDict:
-                scramblesDict[data[0].text] = [data[2].text]
-            else:
-                scramblesDict[data[0].text].append(data[2].text)
+            if f'{event} {ro}'.split() == title:
+                scrambleTable = cube.find('tbody')
+                break
 
-    return scramblesDict
+        scramblesDict = {}
+
+        for row in scrambleTable.find_all('tr'):
+            data = row.find_all('td')
+
+            if 'Ex' not in data[1].text:
+                if data[0].text not in scramblesDict:
+                    scramblesDict[data[0].text] = [data[2].text]
+                else:
+                    scramblesDict[data[0].text].append(data[2].text)
+
+        fullDict[ro] = scramblesDict
+
+    return fullDict
 
 
 def writeToFile(infoTuple, scrambles):
     event, round, name, comp, times = infoTuple[1:]
-    filename = f'{event} {round}.txt'
+
+    if len(round) == 1:
+        filename = f'{event} {round[0]}.txt'
+    else:
+        filename = f'{event} all rounds.txt'
 
     with open(filename, 'w') as f:
-        f.write(f'{name} {comp} {event} {round} scrambles and times:\n\n\n')
+        f.write(f'{name} {comp} {event} scrambles and times:\n')
 
-        for group, scramsList in scrambles.items():
-            f.write(f'Group {group}:\n\n')
+        for bigInd, (iRound, groupScram) in enumerate(scrambles.items()):
+            f.write(f'\n\n\n{iRound}:\n')
 
-            for index, scram in enumerate(scramsList):
-                f.write(f'{index + 1} ({times[index]}): {scram}\n')
+            for group, scramsList in groupScram.items():
+                f.write(f'\nGroup {group}:\n\n')
 
-            f.write('\n')
+                for index, scram in enumerate(scramsList):
+                    f.write(f'{index + 1} ({times[bigInd][index]}): {scram}\n')
 
     print(f'\nScrambles retrieved. Look for "{filename}" in your current directory.')
 
@@ -140,7 +164,7 @@ def main():
     writeToFile(eventTup, scrams)
 
     # give possibility to export to a csv/xlsx file
-    # give option to get all scrambles for all rounds of an event
+    # try to find group with pypdf2
 
 
 main()
