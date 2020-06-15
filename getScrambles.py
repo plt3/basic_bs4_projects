@@ -2,10 +2,14 @@ import bs4
 import requests
 import csv
 import pyinputplus as pyip
-from pprint import pprint
+
+# Program to retrieve scrambles for a specific round of an event of a competition
+# that a certain competitor attended. Will write scrambles to txt or csv file,
+# and also has option to retrieve scrambles for all rounds of an event.
+# Source: wcadb.net
 
 
-def prepareSoup(site):
+def prepareSoup(site):  # create BeautifulSoup object from any page
     page = requests.get(site)
     page.raise_for_status()
 
@@ -14,7 +18,7 @@ def prepareSoup(site):
     return soup
 
 
-def compsAndResults():
+def compsAndResults():  # get competitor's name, choose competition and scrape results
     print('Enter WCA ID:', end=' ')
 
     while True:
@@ -25,16 +29,16 @@ def compsAndResults():
         cuberName = cuberPage.find('h1', class_='h3 text-center').text
 
         if cuberName != '':
-            break
+            break  # only break if cuber has attended a competition
 
         print(f'No competitor found for WCA ID {wca}. Try again:', end=' ')
 
     compsTab = cuberPage.find('div', id='competitions_tab')
     compsTags = compsTab.select('div[class="panel panel-default"]')
 
-    compDict = {c.find('strong').text: i for i, c in enumerate(compsTags)}
+    compDict = {c.find('strong').text: i for i, c in enumerate(compsTags)}  # competition names
 
-    if len(list(compDict.keys())) == 1:
+    if len(list(compDict.keys())) == 1:  # automaticlly choose if only one competition
         compChoice = list(compDict.keys())[0]
     else:
         compChoice = pyip.inputMenu(list(compDict.keys()), numbered=True)
@@ -46,7 +50,7 @@ def compsAndResults():
 
     eventsRows = compTag.select('tbody tr')
 
-    eventsAndRounds = {}
+    eventsAndRounds = {}  # scrape competitor's results from selected competition
 
     for row in eventsRows:
         data = row.find_all('td')
@@ -63,11 +67,11 @@ def compsAndResults():
     return {(cuberName, wca): {compInfo: eventsAndRounds}}
 
 
-def chooseRound(infoDict):
+def chooseRound(infoDict):  # choose event and round(s) to get scrambles for
     events = list(list(infoDict.values())[0].values())[0]
     print()
 
-    if len(list(events.keys())) == 1:
+    if len(list(events.keys())) == 1:  # automatically choose if only one event
         eventChoice = list(events.keys())[0]
     else:
         eventChoice = pyip.inputMenu(list(events.keys()), numbered=True)
@@ -78,7 +82,7 @@ def chooseRound(infoDict):
 
     if len(roundsList) > 1:
         roundsList.append('Get scrambles for all rounds')
-        print()
+        print()  # let user choose round(s) to get scrambles for
         rawInp = pyip.inputMenu(roundsList, numbered=True)
 
         if rawInp == 'Get scrambles for all rounds':
@@ -93,15 +97,15 @@ def chooseRound(infoDict):
     comp = compTup[0]
     compLink = compTup[1]
     name = list(infoDict.keys())[0][0]
-
+    # tuple below holds all info needed to find scrambles
     return (compLink, eventChoice, roundChoice, name, comp, times)
 
 
-def findScrambles(dataTuple):
+def findScrambles(dataTuple):  # actually retrieve desired scrambles
     link, event, round = dataTuple[:3]
     print('\nLocating scrambles. This may take several seconds for larger competitions...')
 
-    fullSoup = prepareSoup(link)
+    fullSoup = prepareSoup(link)  # creating BeautifulSoup object takes long for big competitions
     scramblesPage = fullSoup.select_one('div[id="scrambles_tab"]')
 
     try:
@@ -110,13 +114,13 @@ def findScrambles(dataTuple):
         print('Sorry, but wcadb.net has no scrambles for this competition.')
         exit()
 
-    fullDict = {}
+    fullDict = {}  # create dictionary to hold scrambles for each group of each round
 
     for ro in round:
         for cube in eventRounds:
             title = cube.find('a', class_='list-group-item').text.split()
 
-            if f'{event} {ro}'.split() == title:
+            if f'{event} {ro}'.split() == title:  # find correct round for correct event
                 scrambleTable = cube.find('tbody')
                 break
 
@@ -125,7 +129,7 @@ def findScrambles(dataTuple):
         for row in scrambleTable.find_all('tr'):
             data = row.find_all('td')
 
-            if 'Ex' not in data[1].text:
+            if 'Ex' not in data[1].text:  # ignore extra scrambles for simplicity
                 if data[0].text not in scramblesDict:
                     scramblesDict[data[0].text] = [data[2].text]
                 else:
@@ -189,7 +193,7 @@ def writeCsvFile(infoTuple, scrambles):
                 for scramInd, scram in enumerate(scrams):
                     valuesToWrite = [None, None, times[roInd][scramInd], scram]
 
-                    if ro != prevRound:
+                    if ro != prevRound:  # make round and group names only appear once
                         valuesToWrite[0] = ro
 
                     if group != prevGroup:
@@ -216,8 +220,6 @@ def main():
         writeTxtFile(eventTup, scrams)
     else:
         writeCsvFile(eventTup, scrams)
-
-    # try to find group with pypdf2
 
 
 main()
